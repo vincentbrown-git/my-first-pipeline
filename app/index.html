@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Vinny's App</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #f0f0f0;
+      }
+      .card {
+        background: white;
+        padding: 40px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      .env { color: #e74c3c; font-size: 14px; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>My First Pipeline</h1>
+      <p>This is the STAGING environment</p>
+      <p class="env">Deployed via GitHub Actions + Docker</p>
+    </div>
+  </body>
+</html>
