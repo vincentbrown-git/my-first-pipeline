@@ -8,43 +8,55 @@ on:
 
 jobs:
 
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set environment based on branch
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "ENV_NAME=production" >> $GITHUB_ENV
-            echo "SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> $GITHUB_ENV
-            echo "SSH_KEY=${{ secrets.PROD_SSH_KEY }}" >> $GITHUB_ENV
-          else
-            echo "ENV_NAME=staging" >> $GITHUB_ENV
-            echo "SERVER_IP=${{ secrets.STAGING_SERVER_IP }}" >> $GITHUB_ENV
-            echo "SSH_KEY=${{ secrets.STAGING_SSH_KEY }}" >> $GITHUB_ENV
-          fi
-
-      - name: Build Docker image
-        run: |
-          docker build -t my-first-pipeline:${{ github.sha }} .
-          docker tag my-first-pipeline:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:${{ env.ENV_NAME }}
-
-      - name: Push to Docker Hub
+      - name: Build and push Docker image
         run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          docker push ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:${{ env.ENV_NAME }}
+          
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            TAG=production
+          else
+            TAG=staging
+          fi
+          
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:$TAG .
+          docker push ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:$TAG
 
-      - name: Deploy to server
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    steps:
+      - name: Deploy to staging
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.SERVER_IP }}
+          host: ${{ secrets.STAGING_SERVER_IP }}
           username: ec2-user
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:${{ env.ENV_NAME }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:staging
             docker stop my-app || true
             docker rm my-app || true
-            docker run -d --name my-app -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:${{ env.ENV_NAME }}
+            docker run -d --name my-app -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:staging
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.PROD_SERVER_IP }}
+          username: ec2-user
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:production
+            docker stop my-app || true
+            docker rm my-app || true
+            docker run -d --name my-app -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-first-pipeline:production
